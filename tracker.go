@@ -3,8 +3,11 @@ package main
 import (
 	"fmt"
 	"log"
+	"bytes"
 	"net/http"
 )
+
+const version = "gotorrent"
 
 type Tracker struct {
 	c  *Config
@@ -60,8 +63,9 @@ func (t *Tracker) announceHandler(w http.ResponseWriter, r *http.Request) error 
 }
 
 func (t *Tracker) scrapeHandler(w http.ResponseWriter, r *http.Request) error {
-	if r.URL.Query().Get("stats") != "" {
-		return t.handleStats()
+	stats := r.URL.Query().Get("stats")
+	if stats != "" {
+		return t.handleStats(w, stats)
 	}
 	infoHash := []byte(r.URL.Query().Get("info_hash"))
 	if len(infoHash) != 20 {
@@ -82,51 +86,22 @@ func (t *Tracker) scrapeHandler(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (t *Tracker) handleStats() error {
-	// 	// get stats
-	// 	$query = self::$db->query(
-	// 		// select seeders and leechers
-	// 		'SELECT SUM(state=1), SUM(state=0), ' .
-	// 		// unique torrents from peers
-	// 		'COUNT(DISTINCT info_hash) FROM peers;'
-	// 	) OR tracker_error('failed to retrieve tracker statistics');
-	// 	$stats = $query->fetchArray(SQLITE3_NUM);
-
-	// 	// output format
-	// 	switch ($_GET['stats'])
-	// 	{
-	// 		// xml
-	// 		case 'xml':
-	// 			header('Content-Type: text/xml');
-	// 			echo '<?xml version="1.0" encoding="ISO-8859-1"?>' .
-	// 			     '<tracker version="$Id: tracker.sqlite3.php 148 2009-11-16 23:18:28Z trigunflame $">' .
-	// 			     '<peers>' . number_format($stats[0] + $stats[1]) . '</peers>' .
-	// 			     '<seeders>' . number_format($stats[0]) . '</seeders>' .
-	// 			     '<leechers>' . number_format($stats[1]) . '</leechers>' .
-	// 			     '<torrents>' . number_format($stats[2]) . '</torrents></tracker>';
-	// 			break;
-
-	// 		// json
-	// 		case 'json':
-	// 			header('Content-Type: text/javascript');
-	// 			echo '{"tracker":{"version":"$Id: tracker.sqlite3.php 148 2009-11-16 23:18:28Z trigunflame $",' .
-	// 			     '"peers": "' . number_format($stats[0] + $stats[1]) . '",' .
-	// 			     '"seeders":"' . number_format($stats[0]) . '",' .
-	// 			     '"leechers":"' . number_format($stats[1]) . '",' .
-	// 			     '"torrents":"' . number_format($stats[2]) . '"}}';
-	// 			break;
-
-	// 		// standard
-	// 		default:
-	// 			echo '<!doctype html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8">' .
-	// 			     '<title>PeerTracker: $Id: tracker.sqlite3.php 148 2009-11-16 23:18:28Z trigunflame $</title>' .
-	// 			     '<body><pre>' . number_format($stats[0] + $stats[1]) .
-	// 			     ' peers (' . number_format($stats[0]) . ' seeders + ' . number_format($stats[1]) .
-	// 			     ' leechers) in ' . number_format($stats[2]) . ' torrents</pre></body></html>';
-	// 	}
-
-	// 	// cleanup
-	// 	$query->finalize();
-	// }
+func (t *Tracker) handleStats(w http.ResponseWriter, statsType string) error {
+	var b bytes.Buffer
+	seeders, leechers, torrents, err := t.db.GetStats()
+	if err != nil {
+		return err
+	}
+	switch statsType {
+	case "xml":
+		b.WriteString(fmt.Sprintf(`<?xml version="1.0" encoding="ISO-8859-1"?><tracker version="%s"><peers>%d</peers><seeders>%d</seeders><leechers>%d</leechers><torrents>%d</torrents></tracker>`, version, seeders+leechers, seeders, leechers, torrents))
+		w.Header().Set("Content-Type", "text/xml")
+	case "json":
+		b.WriteString(fmt.Sprintf(`{"tracker":{"version":"%s", "peers": %d, "seeders": %d, "leechers": %d, "torrents": %d}}`, version, seeders+leechers, seeders, leechers, torrents))
+		w.Header().Set("Content-Type", "text/javascript")
+	default: 
+		b.WriteString(fmt.Sprintf(`<!doctype html><html><head><meta charset='utf-8'><title>%s</title><body><pre>%d peers (%d seeders + %d leechers) in %d torrents</pre></body></html>`, version, seeders+leechers, seeders, leechers, torrents))
+	}
+	b.WriteTo(w)
 	return nil
 }

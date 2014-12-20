@@ -29,7 +29,7 @@ func (ps Peers) getPeersBuffer(compact, noPeerId bool) *bytes.Buffer {
 			tb.Write(peer.Compact)
 		}
 		// 6-byte compacted peer info
-		result.WriteString(fmt.Sprintf("%d:", tb.Len))
+		result.WriteString(fmt.Sprintf("%d:", tb.Len()))
 		result.Write(tb.Bytes())
 		return &result
 	}

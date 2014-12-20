@@ -154,3 +154,7 @@ func (db *Database) clean() {
 func (db *Database) GetScrapeInfo(infoHash []byte) (*ScrapeList, error) {
 	return nil, nil
 }
+
+func (db *Database) GetStats() (int, int, int, error) {
+	return 0, 0, 0, nil
+}
