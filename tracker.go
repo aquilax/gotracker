@@ -5,15 +5,22 @@ import (
 	"net/http"
 )
 
-type Tracker struct{}
+type Tracker struct {
+	c *Config
+}
 
 type appHandler func(http.ResponseWriter, *http.Request) error
 
-func NewTracker() *Tracker{
+func NewTracker() *Tracker {
 	return &Tracker{}
 }
 
 func (t *Tracker) Run() {
+	t.c = NewConfig()
+	if err := t.c.Load(); err != nil {
+		log.Panic(err)
+	}
+
 	http.Handle("/announce", appHandler(t.announceHandler))
 	http.Handle("/scrape", appHandler(t.scrapeHandler))
 	log.Fatal(http.ListenAndServe(":8080", nil))
@@ -21,7 +28,7 @@ func (t *Tracker) Run() {
 
 func (fn appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := fn(w, r); err != nil {
-		log.Println(err.Error());
+		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
