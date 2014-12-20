@@ -1,12 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 )
 
 type Tracker struct {
-	c *Config
+	c  *Config
+	db *Database
 }
 
 type appHandler func(http.ResponseWriter, *http.Request) error
@@ -34,6 +36,25 @@ func (fn appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t *Tracker) announceHandler(w http.ResponseWriter, r *http.Request) error {
+	cl, err := NewClient(t.c, r)
+	if err != nil {
+		return err
+	}
+	total, err := t.db.getPeersCountForHash(cl.InfoHash)
+	if total < 1 {
+		// No peers found
+	}
+	w.Write([]byte(fmt.Sprintf("d8:intervali%de12:min intervali%de5:peers", t.c.AnnounceInterval, t.c.MinInterval)))
+	peers, err := t.db.getPeersForHash(cl.InfoHash, total, t.c)
+	if err != nil {
+		return err
+	}
+	peers.getPeersBuffer(cl.Compact, cl.NoPeerId).WriteTo(w)
+	w.Write([]byte("e"))
+
+	if err := cl.Event(); err != nil {
+		return err
+	}
 	return nil
 }
 

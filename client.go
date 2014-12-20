@@ -1,17 +1,20 @@
 package main
 
 import (
-	"net/http"
 	"errors"
+	"net"
+	"net/http"
 	"strconv"
+	"strings"
 )
 
 type Client struct {
-	Seeding int
-	Compact bool
+	InfoHash string
+	Seeding  int
+	Compact  bool
 	NoPeerId bool
-	Ip string
-	NumWant int
+	IP       string
+	NumWant  int
 }
 
 func NewClient(c *Config, r *http.Request) (*Client, error) {
@@ -19,16 +22,16 @@ func NewClient(c *Config, r *http.Request) (*Client, error) {
 
 	// 20-bytes - info_hash
 	// sha-1 hash of torrent metainfo
-	infoHash := r.URL.Query().Get("info_hash")
-	if len(infoHash) != 20 {
-		return nil, errors.New("Bad info_hash: " + infoHash);
+	cl.InfoHash = r.URL.Query().Get("info_hash")
+	if len(cl.InfoHash) != 20 {
+		return nil, errors.New("Bad info_hash: " + cl.InfoHash)
 	}
 
 	// 20-bytes - peer_id
 	// client generated unique peer identifier
 	peerId := r.URL.Query().Get("peer_id")
 	if len(peerId) != 20 {
-		return nil, errors.New("Bad peer_id: " + peerId);
+		return nil, errors.New("Bad peer_id: " + peerId)
 	}
 
 	// integer - port
@@ -71,23 +74,21 @@ func NewClient(c *Config, r *http.Request) (*Client, error) {
 	// ip address the peer requested to use
 	ip := r.URL.Query().Get("ip")
 	if ip != "" && c.ExternalIp {
-		//TODO validate IP 
-			// $_GET['ip'] = trim($_GET['ip'],'::ffff:');
-			// if (!ip2long($_GET['ip'])) tracker_error('invalid ip, dotted decimal only');
+		pip := net.ParseIP(ip)
+		if pip == nil {
+			return nil, TrackerError{"invalid ip, dotted decimal only"}
+		}
+		cl.IP = pip.String()
+	} else if r.RemoteAddr != "" {
+		ip = strings.Split(r.RemoteAddr, ":")[0]
+		pip := net.ParseIP(ip)
+		if pip == nil {
+			return nil, TrackerError{"invalid ip, dotted decimal only"}
+		}
+		cl.IP = pip.String()
+	} else {
+		return nil, TrackerError{"could not locate clients ip"}
 	}
-
-// // string - ip - optional
-// // ip address the peer requested to use
-// if (isset($_GET['ip']) && $_SERVER['tracker']['external_ip'])
-// {
-// 	// dotted decimal only
-// 	$_GET['ip'] = trim($_GET['ip'],'::ffff:');
-// 	if (!ip2long($_GET['ip'])) tracker_error('invalid ip, dotted decimal only');
-// }
-// // set ip to connected client
-// elseif (isset($_SERVER['REMOTE_ADDR'])) $_GET['ip'] = trim($_SERVER['REMOTE_ADDR'],'::ffff:');
-// // cannot locate suitable ip, must abort
-// else tracker_error('could not locate clients ip');
 
 	numwant := r.URL.Query().Get("numwant")
 	cl.NumWant = c.DefaultPeers
@@ -99,4 +100,58 @@ func NewClient(c *Config, r *http.Request) (*Client, error) {
 		}
 	}
 	return cl, nil
+}
+
+func (cl *Client) Event() error {
+
+	// public static function event()
+	// {
+	// 	// build peer query
+	// 	$peer = self::$db->prepare(
+	// 		// select a peer from the peers table that matches the given info_hash and peer_id
+	// 		'SELECT ip, port, state FROM peers WHERE info_hash=:info_hash AND peer_id=:peer_id;'
+	// 	);
+
+	// 	// assign binary data
+	// 	$peer->bindValue(':info_hash', $_GET['info_hash'], SQLITE3_BLOB);
+	// 	$peer->bindValue(':peer_id', $_GET['peer_id'], SQLITE3_BLOB);
+
+	// 	// execute peer select & cleanup
+	// 	$success = $peer->execute() OR tracker_error('failed to select peer data');
+	// 	$pState = $success->fetchArray(SQLITE3_NUM);
+	// 	$success->finalize();
+	// 	$peer->close();
+
+	// 	// process tracker event
+	// 	switch ((isset($_GET['event']) ? $_GET['event'] : false))
+	// 	{
+	// 		// client gracefully exited
+	// 		case 'stopped':
+	// 			// remove peer
+	// 			if (isset($pState[2])) self::delete_peer();
+	// 			break;
+	// 		// client completed download
+	// 		case 'completed':
+	// 			// force seeding status
+	// 			$_SERVER['tracker']['seeding'] = 1;
+	// 		// client started download
+	// 		case 'started':
+	// 		// client continuing download
+	// 		default:
+	// 			// new peer
+	// 			if (!isset($pState[2])) self::new_peer();
+	// 			// peer status
+	// 			elseif (
+	// 				// check that ip addresses match
+	// 				$pState[0] != $_GET['ip'] ||
+	// 				// check that listening ports match
+	// 				($pState[1]+0) != $_GET['port'] ||
+	// 				// check whether seeding status match
+	// 				($pState[2]+0) != $_SERVER['tracker']['seeding']
+	// 			) self::update_peer();
+	// 			// update time
+	// 			else self::update_last_access();
+	// 	}
+	// }
+	return nil
 }
