@@ -98,3 +98,59 @@ func (db *Database) UpdatePeer(peer *Peer) {
 func (db *Database) UpdateLastAccess(peer *Peer) {
 
 }
+
+func (db *Database) clean() {
+
+	// // database cleanup
+	// public static function clean()
+	// {
+	// 	// run cleanup once per announce interval
+	// 	// check 'clean_idle_peers'% of the time to avoid excess queries
+	// 	if (mt_rand(1, $_SERVER['tracker']['clean_idle_peers']) == 1)
+	// 	{
+	// 		// unix timestamp
+	// 		$time = time();
+
+	// 		// fetch last cleanup time
+	// 		if (($last = self::$db->querySingle(
+	// 			// select last cleanup from tasks
+	// 			"SELECT value FROM tasks WHERE name='prune';"
+	// 		) + 0) == 0)
+	// 		{
+	// 			self::$db->exec(
+	// 				// begin query transaction
+	// 				'BEGIN TRANSACTION; ' .
+	// 				// set tasks value prune to current unix timestamp
+	// 				"INSERT OR REPLACE INTO tasks VALUES('prune', {$time}); " .
+	// 				// delete peers that have been idle too long
+	// 				'DELETE FROM peers WHERE updated < ' .
+	// 				// idle length is announce interval x 2
+	// 				($time - ($_SERVER['tracker']['announce_interval'] * 2)) . '; ' .
+	// 				// end transaction and commit
+	// 				'COMMIT;'
+	// 			) OR tracker_error('could not perform maintenance');
+	// 		}
+	// 		// prune idle peers
+	// 		elseif (($last + $_SERVER['tracker']['announce_interval']) < $time)
+	// 		{
+	// 			self::$db->exec(
+	// 				// begin query transaction
+	// 				'BEGIN TRANSACTION; ' .
+	// 				// set tasks value prune to current unix timestamp
+	// 				"UPDATE tasks SET value={$time} WHERE name='prune'; " .
+	// 				// delete peers that have been idle too long
+	// 				'DELETE FROM peers WHERE updated < ' .
+	// 				// idle length is announce interval x 2
+	// 				($time - ($_SERVER['tracker']['announce_interval'] * 2)) . '; ' .
+	// 				// end transaction and commit
+	// 				'COMMIT;'
+	// 			) OR tracker_error('could not perform maintenance');
+	// 		}
+	// 	}
+	// }
+
+}
+
+func (db *Database) GetScrapeInfo(infoHash []byte) (*ScrapeList, error) {
+	return nil, nil
+}

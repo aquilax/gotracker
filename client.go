@@ -13,6 +13,15 @@ const (
 	stateSeeding
 )
 
+type ScrapeItem struct {
+	InfoHash   []byte
+	Complete   int
+	Downloaded int
+	Incomplete int
+}
+
+type ScrapeList []ScrapeItem
+
 type Client struct {
 	IsCompact bool
 	NoPeerId  bool
