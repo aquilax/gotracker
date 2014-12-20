@@ -119,8 +119,8 @@ func NewClient(c *Config, r *http.Request) (*Client, error) {
 	return cl, nil
 }
 
-func (cl *Client) processEvent(db *Database) error {
-	peer, err := db.getPeerByHashAndId(cl.InfoHash, cl.ID)
+func (cl *Client) processEvent(db Database) error {
+	peer, err := db.GetPeerByHashAndId(cl.InfoHash, cl.ID)
 	if err != nil {
 		return err
 	}

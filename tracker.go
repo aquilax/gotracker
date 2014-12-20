@@ -1,9 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
-	"bytes"
 	"net/http"
 )
 
@@ -11,7 +11,7 @@ const version = "gotorrent"
 
 type Tracker struct {
 	c  *Config
-	db *Database
+	db Database
 }
 
 type appHandler func(http.ResponseWriter, *http.Request) error
@@ -43,12 +43,12 @@ func (t *Tracker) announceHandler(w http.ResponseWriter, r *http.Request) error 
 	if err != nil {
 		return err
 	}
-	total, err := t.db.getPeersCountForHash(cl.InfoHash)
+	total, err := t.db.GetPeersCountForHash(cl.InfoHash)
 	if total < 1 {
 		// No peers found
 	}
 	w.Write([]byte(fmt.Sprintf("d8:intervali%de12:min intervali%de5:peers", t.c.AnnounceInterval, t.c.MinInterval)))
-	peers, err := t.db.getPeersForHash(cl.InfoHash, total, t.c)
+	peers, err := t.db.GetPeersForHash(cl.InfoHash, total, cl.NumWant)
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func (t *Tracker) announceHandler(w http.ResponseWriter, r *http.Request) error 
 	if err := cl.processEvent(t.db); err != nil {
 		return err
 	}
-	t.db.clean()
+	t.db.Clean()
 	return nil
 }
 
@@ -99,7 +99,7 @@ func (t *Tracker) handleStats(w http.ResponseWriter, statsType string) error {
 	case "json":
 		b.WriteString(fmt.Sprintf(`{"tracker":{"version":"%s", "peers": %d, "seeders": %d, "leechers": %d, "torrents": %d}}`, version, seeders+leechers, seeders, leechers, torrents))
 		w.Header().Set("Content-Type", "text/javascript")
-	default: 
+	default:
 		b.WriteString(fmt.Sprintf(`<!doctype html><html><head><meta charset='utf-8'><title>%s</title><body><pre>%d peers (%d seeders + %d leechers) in %d torrents</pre></body></html>`, version, seeders+leechers, seeders, leechers, torrents))
 	}
 	b.WriteTo(w)
