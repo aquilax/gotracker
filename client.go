@@ -8,13 +8,17 @@ import (
 	"strings"
 )
 
+const (
+	stateDownloading = iota
+	stateSeeding
+)
+
 type Client struct {
-	InfoHash string
-	Seeding  int
-	Compact  bool
-	NoPeerId bool
-	IP       string
-	NumWant  int
+	IsCompact bool
+	NoPeerId  bool
+	NumWant   int
+	Event     string
+	Peer
 }
 
 func NewClient(c *Config, r *http.Request) (*Client, error) {
@@ -22,22 +26,23 @@ func NewClient(c *Config, r *http.Request) (*Client, error) {
 
 	// 20-bytes - info_hash
 	// sha-1 hash of torrent metainfo
-	cl.InfoHash = r.URL.Query().Get("info_hash")
+	cl.InfoHash = []byte(r.URL.Query().Get("info_hash"))
 	if len(cl.InfoHash) != 20 {
-		return nil, errors.New("Bad info_hash: " + cl.InfoHash)
+		return nil, errors.New("Bad info_hash: " + string(cl.InfoHash))
 	}
 
 	// 20-bytes - peer_id
 	// client generated unique peer identifier
-	peerId := r.URL.Query().Get("peer_id")
-	if len(peerId) != 20 {
-		return nil, errors.New("Bad peer_id: " + peerId)
+	cl.ID = []byte(r.URL.Query().Get("peer_id"))
+	if len(cl.ID) != 20 {
+		return nil, errors.New("Bad peer_id: " + string(cl.ID))
 	}
 
 	// integer - port
 	// port the client is accepting connections from
 	port := r.URL.Query().Get("port")
-	if _, err := strconv.Atoi(port); err != nil {
+	var err error
+	if cl.Port, err = strconv.Atoi(port); err != nil {
 		return nil, &TrackerError{"client listening port is invalid"}
 	}
 
@@ -48,18 +53,18 @@ func NewClient(c *Config, r *http.Request) (*Client, error) {
 	if err != nil {
 		return nil, &TrackerError{"client data left field is invalid"}
 	}
-	cl.Seeding = 1
+	cl.State = stateDownloading
 	if lefti > 0 {
-		cl.Seeding = 0
+		cl.State = stateSeeding
 	}
 
 	// integer boolean - compact - optional
 	// send a compact peer response
 	// http://bittorrent.org/beps/bep_0023.html
 	compact := r.URL.Query().Get("comapct")
-	cl.Compact = false
+	cl.IsCompact = false
 	if compact == "1" || c.ForceCompact {
-		cl.Compact = true
+		cl.IsCompact = true
 	}
 
 	// integer boolean - no_peer_id - optional
@@ -99,59 +104,37 @@ func NewClient(c *Config, r *http.Request) (*Client, error) {
 			cl.NumWant = numwantI
 		}
 	}
+
+	cl.Event = r.URL.Query().Get("event")
+
 	return cl, nil
 }
 
-func (cl *Client) Event() error {
+func (cl *Client) processEvent(db *Database) error {
+	peer, err := db.getPeerByHashAndId(cl.InfoHash, cl.ID)
+	if err != nil {
+		return err
+	}
 
-	// public static function event()
-	// {
-	// 	// build peer query
-	// 	$peer = self::$db->prepare(
-	// 		// select a peer from the peers table that matches the given info_hash and peer_id
-	// 		'SELECT ip, port, state FROM peers WHERE info_hash=:info_hash AND peer_id=:peer_id;'
-	// 	);
-
-	// 	// assign binary data
-	// 	$peer->bindValue(':info_hash', $_GET['info_hash'], SQLITE3_BLOB);
-	// 	$peer->bindValue(':peer_id', $_GET['peer_id'], SQLITE3_BLOB);
-
-	// 	// execute peer select & cleanup
-	// 	$success = $peer->execute() OR tracker_error('failed to select peer data');
-	// 	$pState = $success->fetchArray(SQLITE3_NUM);
-	// 	$success->finalize();
-	// 	$peer->close();
-
-	// 	// process tracker event
-	// 	switch ((isset($_GET['event']) ? $_GET['event'] : false))
-	// 	{
-	// 		// client gracefully exited
-	// 		case 'stopped':
-	// 			// remove peer
-	// 			if (isset($pState[2])) self::delete_peer();
-	// 			break;
-	// 		// client completed download
-	// 		case 'completed':
-	// 			// force seeding status
-	// 			$_SERVER['tracker']['seeding'] = 1;
-	// 		// client started download
-	// 		case 'started':
-	// 		// client continuing download
-	// 		default:
-	// 			// new peer
-	// 			if (!isset($pState[2])) self::new_peer();
-	// 			// peer status
-	// 			elseif (
-	// 				// check that ip addresses match
-	// 				$pState[0] != $_GET['ip'] ||
-	// 				// check that listening ports match
-	// 				($pState[1]+0) != $_GET['port'] ||
-	// 				// check whether seeding status match
-	// 				($pState[2]+0) != $_SERVER['tracker']['seeding']
-	// 			) self::update_peer();
-	// 			// update time
-	// 			else self::update_last_access();
-	// 	}
-	// }
+	switch cl.Event {
+	case "stopped":
+		// remove peer
+		if peer != nil {
+			db.DeletePeer(peer)
+		}
+	case "completed":
+		cl.State = stateSeeding
+	case "started":
+		// client continuing download
+	default:
+		// new user
+		if peer == nil {
+			db.NewPeer(cl)
+		} else if peer.IP == cl.IP && peer.Port == cl.Port && peer.State == cl.State {
+			db.UpdatePeer(peer)
+		} else {
+			db.UpdateLastAccess(peer)
+		}
+	}
 	return nil
 }

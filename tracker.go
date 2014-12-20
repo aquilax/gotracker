@@ -49,10 +49,10 @@ func (t *Tracker) announceHandler(w http.ResponseWriter, r *http.Request) error 
 	if err != nil {
 		return err
 	}
-	peers.getPeersBuffer(cl.Compact, cl.NoPeerId).WriteTo(w)
+	peers.getPeersBuffer(cl.IsCompact, cl.NoPeerId).WriteTo(w)
 	w.Write([]byte("e"))
 
-	if err := cl.Event(); err != nil {
+	if err := cl.processEvent(t.db); err != nil {
 		return err
 	}
 	return nil

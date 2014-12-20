@@ -6,17 +6,18 @@ import (
 )
 
 type Peer struct {
-	ID      []byte `db:"peer_id"`
-	Compact []byte `db:"compact"`
-	IP      string `db:"ip"`
-	Port    int    `db:"port"`
-	State   int    `db:"state"`
-	Updated int    `db:"updated"`
+	InfoHash []byte `db:"info_hash"`
+	ID       []byte `db:"peer_id"`
+	Compact  []byte `db:"compact"`
+	IP       string `db:"ip"`
+	Port     int    `db:"port"`
+	State    int    `db:"state"`
+	Updated  int    `db:"updated"`
 }
 
 type Peers []*Peer
 
-func (ps *Peers) getPeersBuffer(compact, noPeerId bool) *bytes.Buffer {
+func (ps Peers) getPeersBuffer(compact, noPeerId bool) *bytes.Buffer {
 	var result bytes.Buffer
 
 	// compact announce
@@ -24,7 +25,7 @@ func (ps *Peers) getPeersBuffer(compact, noPeerId bool) *bytes.Buffer {
 		// peers list
 		var tb bytes.Buffer
 		// build response
-		for _, peer := range *ps {
+		for _, peer := range ps {
 			tb.Write(peer.Compact)
 		}
 		// 6-byte compacted peer info
@@ -35,7 +36,7 @@ func (ps *Peers) getPeersBuffer(compact, noPeerId bool) *bytes.Buffer {
 
 	// dictionary announce
 	result.WriteString("l")
-	for _, peer := range *ps {
+	for _, peer := range ps {
 		if noPeerId {
 			result.WriteString(fmt.Sprintf("d2:ip%d:%s7:peer id20:%s4:porti%dee", len(peer.IP), peer.IP, peer.ID, peer.Port))
 		} else {

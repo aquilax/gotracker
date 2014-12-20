@@ -11,7 +11,7 @@ func (db *Database) Init() {
 	// }
 }
 
-func (db *Database) getPeersCountForHash(infoHash string) (int, error) {
+func (db *Database) getPeersCountForHash(infoHash []byte) (int, error) {
 	// TODO
 
 	// // fetch peer total
@@ -32,8 +32,8 @@ func (db *Database) getPeersCountForHash(infoHash string) (int, error) {
 	return 1, nil
 }
 
-func (db *Database) getPeersForHash(infoHahs string, total int, c *Config) (*Peers, error) {
-
+func (db *Database) getPeersForHash(infoHash []byte, total int, c *Config) (*Peers, error) {
+	var peers Peers
 	// // prepare query
 	// $peer = self::$db->prepare(
 	// 	// select
@@ -59,5 +59,42 @@ func (db *Database) getPeersForHash(infoHahs string, total int, c *Config) (*Pee
 	// 	)
 	// );
 
-	return nil, nil
+	return &peers, nil
+}
+
+func (db *Database) getPeerByHashAndId(infoHash, peerId []byte) (*Peer, error) {
+
+	// // build peer query
+	// $peer = self::$db->prepare(
+	// 	// select a peer from the peers table that matches the given info_hash and peer_id
+	// 	'SELECT ip, port, state FROM peers WHERE info_hash=:info_hash AND peer_id=:peer_id;'
+	// );
+
+	// // assign binary data
+	// $peer->bindValue(':info_hash', $_GET['info_hash'], SQLITE3_BLOB);
+	// $peer->bindValue(':peer_id', $_GET['peer_id'], SQLITE3_BLOB);
+
+	// // execute peer select & cleanup
+	// $success = $peer->execute() OR tracker_error('failed to select peer data');
+	// $pState = $success->fetchArray(SQLITE3_NUM);
+	// $success->finalize();
+	// $peer->close();
+
+	return &Peer{}, nil
+}
+
+func (db *Database) DeletePeer(peer *Peer) {
+
+}
+
+func (db *Database) NewPeer(client *Client) {
+
+}
+
+func (db *Database) UpdatePeer(peer *Peer) {
+
+}
+
+func (db *Database) UpdateLastAccess(peer *Peer) {
+
 }
