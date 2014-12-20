@@ -1,6 +1,6 @@
 package main
 
-type DatabaseSQLite struct {}
+type DatabaseSQLite struct{}
 
 func (dbsl *DatabaseSQLite) Init() {
 	// sql := []string{
