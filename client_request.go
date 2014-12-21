@@ -3,7 +3,7 @@ package main
 import (
 	"errors"
 	"net"
-	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -22,124 +22,126 @@ type ScrapeItem struct {
 
 type ScrapeList []ScrapeItem
 
-type Client struct {
-	IsCompact bool
-	NoPeerId  bool
-	NumWant   int
-	Event     string
-	Peer
+type ClientRequest struct {
+	isCompact bool
+	noPeerId  bool
+	numWant   int
+	event     string
+	peer      *Peer
 }
 
-func NewClient(c *Config, r *http.Request) (*Client, error) {
-	cl := &Client{}
+func NewClientRequest(c *Config, query url.Values, clientIp string) (*ClientRequest, error) {
+	cr := &ClientRequest{
+		peer: NewPeer(),
+	}
 
 	// 20-bytes - info_hash
 	// sha-1 hash of torrent metainfo
-	cl.InfoHash = []byte(r.URL.Query().Get("info_hash"))
-	if len(cl.InfoHash) != 20 {
-		return nil, errors.New("Bad info_hash: " + string(cl.InfoHash))
+	cr.peer.InfoHash = []byte(query.Get("info_hash"))
+	if len(cr.peer.InfoHash) != 20 {
+		return nil, errors.New("Bad info_hash: " + string(cr.peer.InfoHash))
 	}
 
 	// 20-bytes - peer_id
 	// client generated unique peer identifier
-	cl.ID = []byte(r.URL.Query().Get("peer_id"))
-	if len(cl.ID) != 20 {
-		return nil, errors.New("Bad peer_id: " + string(cl.ID))
+	cr.peer.ID = []byte(query.Get("peer_id"))
+	if len(cr.peer.ID) != 20 {
+		return nil, errors.New("Bad peer_id: " + string(cr.peer.ID))
 	}
 
 	// integer - port
 	// port the client is accepting connections from
-	port := r.URL.Query().Get("port")
+	port := query.Get("port")
 	var err error
-	if cl.Port, err = strconv.Atoi(port); err != nil {
+	if cr.peer.Port, err = strconv.Atoi(port); err != nil {
 		return nil, &TrackerError{"client listening port is invalid"}
 	}
 
 	// integer - left
 	// number of bytes left for the peer to download
-	left := r.URL.Query().Get("left")
+	left := query.Get("left")
 	lefti, err := strconv.Atoi(left)
 	if err != nil {
 		return nil, &TrackerError{"client data left field is invalid"}
 	}
-	cl.State = stateDownloading
+	cr.peer.State = stateSeeding
 	if lefti > 0 {
-		cl.State = stateSeeding
+		cr.peer.State = stateDownloading
 	}
 
 	// integer boolean - compact - optional
 	// send a compact peer response
 	// http://bittorrent.org/beps/bep_0023.html
-	compact := r.URL.Query().Get("comapct")
-	cl.IsCompact = false
-	if compact == "1" || c.ForceCompact {
-		cl.IsCompact = true
+	compact := query.Get("compact")
+	cr.isCompact = false
+	if (compact != "" && compact != "0") || c.ForceCompact {
+		cr.isCompact = true
 	}
 
 	// integer boolean - no_peer_id - optional
 	// omit peer_id in dictionary announce response
-	noPeerId := r.URL.Query().Get("no_peer_id")
-	cl.NoPeerId = false
-	if noPeerId != "" {
-		cl.NoPeerId = true
+	noPeerId := query.Get("no_peer_id")
+	cr.noPeerId = false
+	if noPeerId != "" && noPeerId != "0" {
+		cr.noPeerId = true
 	}
 
 	// string - ip - optional
 	// ip address the peer requested to use
-	ip := r.URL.Query().Get("ip")
+	ip := query.Get("ip")
 	if ip != "" && c.ExternalIp {
 		pip := net.ParseIP(ip)
 		if pip == nil {
 			return nil, TrackerError{"invalid ip, dotted decimal only"}
 		}
-		cl.IP = pip.String()
-	} else if r.RemoteAddr != "" {
-		ip = strings.Split(r.RemoteAddr, ":")[0]
+		cr.peer.IP = pip.String()
+	} else if clientIp != "" {
+		ip = strings.Split(clientIp, ":")[0]
 		pip := net.ParseIP(ip)
 		if pip == nil {
 			return nil, TrackerError{"invalid ip, dotted decimal only"}
 		}
-		cl.IP = pip.String()
+		cr.peer.IP = pip.String()
 	} else {
 		return nil, TrackerError{"could not locate clients ip"}
 	}
 
-	numwant := r.URL.Query().Get("numwant")
-	cl.NumWant = c.DefaultPeers
+	numwant := query.Get("numwant")
+	cr.numWant = c.DefaultPeers
 	numwantI, err := strconv.Atoi(numwant)
 	if err == nil {
-		cl.NumWant = c.MaxPeers
+		cr.numWant = c.MaxPeers
 		if numwantI < c.MaxPeers {
-			cl.NumWant = numwantI
+			cr.numWant = numwantI
 		}
 	}
 
-	cl.Event = r.URL.Query().Get("event")
+	cr.event = query.Get("event")
 
-	return cl, nil
+	return cr, nil
 }
 
-func (cl *Client) processEvent(db Database) error {
-	peer, err := db.GetPeerByHashAndId(cl.InfoHash, cl.ID)
+func (cr *ClientRequest) processEvent(db Database) error {
+	peer, err := db.GetPeerByHashAndId(cr.peer.InfoHash, cr.peer.ID)
 	if err != nil {
 		return err
 	}
 
-	switch cl.Event {
+	switch cr.event {
 	case "stopped":
 		// remove peer
 		if peer != nil {
 			db.DeletePeer(peer)
 		}
 	case "completed":
-		cl.State = stateSeeding
+		cr.peer.State = stateSeeding
 	case "started":
 		// client continuing download
 	default:
 		// new user
 		if peer == nil {
-			db.NewPeer(cl.getPeer())
-		} else if peer.IP == cl.IP && peer.Port == cl.Port && peer.State == cl.State {
+			db.NewPeer(cr.getPeer())
+		} else if cr.differs(peer) {
 			db.UpdatePeer(peer)
 		} else {
 			db.UpdateLastAccess(peer)
@@ -148,14 +150,10 @@ func (cl *Client) processEvent(db Database) error {
 	return nil
 }
 
-func (cl *Client) getPeer() *Peer {
-	peer := NewPeer()
-	peer.InfoHash = cl.InfoHash
-	peer.ID = cl.ID
-	peer.Compact = cl.Compact
-	peer.IP = cl.IP
-	peer.Port = cl.Port
-	peer.State = cl.State
-	peer.Updated = cl.Updated
-	return peer
+func (cr *ClientRequest) getPeer() *Peer {
+	return cr.peer
+}
+
+func (cr *ClientRequest) differs(peer *Peer) bool {
+	return !(peer.IP == cr.peer.IP && peer.Port == cr.peer.Port && peer.State == cr.peer.State)
 }

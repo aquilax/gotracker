@@ -43,23 +43,23 @@ func (fn appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t *Tracker) announceHandler(w http.ResponseWriter, r *http.Request) error {
-	cl, err := NewClient(t.c, r)
+	cr, err := NewClientRequest(t.c, r.URL.Query(), r.RemoteAddr)
 	if err != nil {
 		return err
 	}
-	total, err := t.db.GetPeersCountForHash(cl.InfoHash)
+	total, err := t.db.GetPeersCountForHash(cr.getPeer().InfoHash)
 	if total < 1 {
 		// No peers found
 	}
 	w.Write([]byte(fmt.Sprintf("d8:intervali%de12:min intervali%de5:peers", t.c.AnnounceInterval, t.c.MinInterval)))
-	peers, err := t.db.GetPeerListForHash(cl.InfoHash, total, cl.NumWant)
+	peers, err := t.db.GetPeerListForHash(cr.getPeer().InfoHash, total, cr.numWant)
 	if err != nil {
 		return err
 	}
-	peers.getPeersBuffer(cl.IsCompact, cl.NoPeerId).WriteTo(w)
+	peers.getPeersBuffer(cr.isCompact, cr.noPeerId).WriteTo(w)
 	w.Write([]byte("e"))
 
-	if err := cl.processEvent(t.db); err != nil {
+	if err := cr.processEvent(t.db); err != nil {
 		return err
 	}
 	t.db.Clean()

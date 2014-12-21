@@ -86,7 +86,7 @@ func (dbsl *DatabaseSQLite) DeletePeer(peer *Peer) {
 
 }
 
-func (dbsl *DatabaseSQLite) NewPeer(client *Client) {
+func (dbsl *DatabaseSQLite) NewPeer(peer *Peer) {
 
 }
 
