@@ -41,7 +41,7 @@ func (ps PeerList) getPeersBuffer(compact, noPeerId bool) *bytes.Buffer {
 	// dictionary announce
 	result.WriteString("l")
 	for _, peer := range ps {
-		if noPeerId {
+		if !noPeerId {
 			result.WriteString(fmt.Sprintf("d2:ip%d:%s7:peer id20:%s4:porti%dee", len(peer.IP), peer.IP, peer.ID, peer.Port))
 		} else {
 			result.WriteString(fmt.Sprintf("d2:ip%d:%s4:porti%dee", len(peer.IP), peer.IP, peer.Port))
