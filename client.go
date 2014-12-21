@@ -138,7 +138,7 @@ func (cl *Client) processEvent(db Database) error {
 	default:
 		// new user
 		if peer == nil {
-			db.NewPeer(cl)
+			db.NewPeer(cl.getPeer())
 		} else if peer.IP == cl.IP && peer.Port == cl.Port && peer.State == cl.State {
 			db.UpdatePeer(peer)
 		} else {
@@ -146,4 +146,16 @@ func (cl *Client) processEvent(db Database) error {
 		}
 	}
 	return nil
+}
+
+func (cl *Client) getPeer() *Peer {
+	peer := NewPeer()
+	peer.InfoHash = cl.InfoHash
+	peer.ID = cl.ID
+	peer.Compact = cl.Compact
+	peer.IP = cl.IP
+	peer.Port = cl.Port
+	peer.State = cl.State
+	peer.Updated = cl.Updated
+	return peer
 }

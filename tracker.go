@@ -25,10 +25,14 @@ func (t *Tracker) Run() {
 	if err := t.c.Load(); err != nil {
 		log.Panic(err)
 	}
+	t.db = NewDatabaseMemory()
 
 	http.Handle("/announce", appHandler(t.announceHandler))
 	http.Handle("/scrape", appHandler(t.scrapeHandler))
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	// TODO: Move this to config
+	address := ":8080"
+	log.Println("Server listening on " + address)
+	log.Fatal(http.ListenAndServe(address, nil))
 }
 
 func (fn appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +52,7 @@ func (t *Tracker) announceHandler(w http.ResponseWriter, r *http.Request) error 
 		// No peers found
 	}
 	w.Write([]byte(fmt.Sprintf("d8:intervali%de12:min intervali%de5:peers", t.c.AnnounceInterval, t.c.MinInterval)))
-	peers, err := t.db.GetPeersForHash(cl.InfoHash, total, cl.NumWant)
+	peers, err := t.db.GetPeerListForHash(cl.InfoHash, total, cl.NumWant)
 	if err != nil {
 		return err
 	}

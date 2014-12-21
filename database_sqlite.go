@@ -31,8 +31,8 @@ func (dbsl *DatabaseSQLite) getPeersCountForHash(infoHash []byte) (int, error) {
 	return 1, nil
 }
 
-func (dbsl *DatabaseSQLite) getPeersForHash(infoHash []byte, total, limit int) (*Peers, error) {
-	var peers Peers
+func (dbsl *DatabaseSQLite) getPeersForHash(infoHash []byte, total, limit int) (*PeerList, error) {
+	var peerList PeerList
 	// // prepare query
 	// $peer = self::$db->prepare(
 	// 	// select
@@ -58,7 +58,7 @@ func (dbsl *DatabaseSQLite) getPeersForHash(infoHash []byte, total, limit int) (
 	// 	)
 	// );
 
-	return &peers, nil
+	return &peerList, nil
 }
 
 func (dbsl *DatabaseSQLite) getPeerByHashAndId(infoHash, peerId []byte) (*Peer, error) {

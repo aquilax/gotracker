@@ -15,9 +15,13 @@ type Peer struct {
 	Updated  int    `db:"updated"`
 }
 
-type Peers []*Peer
+type PeerList []*Peer
 
-func (ps Peers) getPeersBuffer(compact, noPeerId bool) *bytes.Buffer {
+func NewPeer() *Peer {
+	return &Peer{}
+}
+
+func (ps PeerList) getPeersBuffer(compact, noPeerId bool) *bytes.Buffer {
 	var result bytes.Buffer
 
 	// compact announce
