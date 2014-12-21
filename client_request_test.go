@@ -191,5 +191,16 @@ func TestClientRequest(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(cr.event, ShouldEqual, "start")
 		})
+		Convey("Differs returns true", func() {
+			cr, err:= NewClientRequest(config, values, "127.0.0.1:8000")
+			So(cr, ShouldNotBeNil)
+			So(err, ShouldBeNil)
+			result := cr.differs(&Peer{
+				IP: "124.0.0.1",
+				Port: 1,
+				State: stateDownloading,
+			})
+			So(result, ShouldBeTrue)
+		})
 	})
 }
