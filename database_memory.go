@@ -6,15 +6,20 @@ import (
 
 type HashMap map[string]*PeerList
 
+type Stats struct {
+	seeders  int
+	leechers int
+}
+
 type DatabaseMemory struct {
-	pl *PeerList
-	hm HashMap
+	hm    HashMap
+	stats Stats
 }
 
 func (hm HashMap) find(infoHash []byte) *PeerList {
 	peerList, found := hm[string(infoHash)]
 	if !found {
-		return nil
+		return &PeerList{}
 	}
 	return peerList
 }
@@ -36,31 +41,29 @@ func (pl PeerList) findPeer(peerId []byte) int {
 
 func NewDatabaseMemory() *DatabaseMemory {
 	return &DatabaseMemory{
-		&PeerList{},
-		make(HashMap),
+		hm: make(HashMap),
 	}
 }
 
 func (dbm *DatabaseMemory) Init() {
-
+	dbm.stats.seeders = 0
+	dbm.stats.leechers = 0
 }
 
 func (dbm *DatabaseMemory) GetPeersCountForHash(infoHash []byte) (int, error) {
 	peerList := dbm.hm.find(infoHash)
-	if peerList != nil {
-		return len(*peerList), nil
-	}
-	return 0, nil
+	return len(*peerList), nil
 }
 
 func (dbm *DatabaseMemory) GetPeerListForHash(infoHash []byte, total, limit int) (*PeerList, error) {
+	// TODO: honor limits, shuffle results
 	peerList := dbm.hm.find(infoHash)
 	return peerList, nil
 }
 
 func (dbm *DatabaseMemory) GetPeerByHashAndId(infoHash, peerId []byte) (*Peer, error) {
 	peerList := dbm.hm.find(infoHash)
-	if peerList != nil && len(*peerList) > 0 {
+	if len(*peerList) > 0 {
 		n := peerList.findPeer(peerId)
 		if n < len(*peerList) {
 			return (*peerList)[n], nil
@@ -72,7 +75,7 @@ func (dbm *DatabaseMemory) GetPeerByHashAndId(infoHash, peerId []byte) (*Peer, e
 
 func (dbm *DatabaseMemory) DeletePeer(peer *Peer) error {
 	peerList := dbm.hm.find(peer.InfoHash)
-	if peerList != nil && len(*peerList) > 0 {
+	if len(*peerList) > 0 {
 		n := peerList.findPeer(peer.ID)
 		if n < len(*peerList) {
 			pl := append((*peerList)[:n], (*peerList)[n+1:]...)
@@ -87,10 +90,14 @@ func (dbm *DatabaseMemory) NewPeer(peer *Peer) error {
 	_, found := dbm.hm[ih]
 	if !found {
 		dbm.hm[ih] = &PeerList{}
-		return nil
 	}
 	pl := append(*(dbm.hm[ih]), peer)
 	dbm.hm[ih] = &pl
+	if peer.State == stateDownloading {
+		dbm.stats.leechers++
+	} else {
+		dbm.stats.seeders++
+	}
 	return nil
 }
 
@@ -112,5 +119,5 @@ func (dbm *DatabaseMemory) GetScrapeInfo(infoHash []byte) (*ScrapeList, error) {
 }
 
 func (dbm *DatabaseMemory) GetStats() (int, int, int, error) {
-	return 0, 0, 0, nil
+	return dbm.stats.seeders, dbm.stats.leechers, len(dbm.hm), nil
 }
