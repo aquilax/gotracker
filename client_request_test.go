@@ -1,9 +1,10 @@
 package main
 
 import (
-	. "github.com/smartystreets/goconvey/convey"
 	"net/url"
 	"testing"
+
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestClientRequest(t *testing.T) {
